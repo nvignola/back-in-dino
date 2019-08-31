@@ -7,7 +7,6 @@ import { createEnemy } from "./src/createEnemy";
 import { createFuture } from "./src/createFuture";
 import { createPast } from "./src/createPast";
 
-let lives = 2;
 let future = createFuture(canvas);
 let past = createPast(canvas);
 let enemies = [];
@@ -51,9 +50,8 @@ let loop = GameLoop({
       if (dino.x >= 5) {
         dino.x -= VELOCITY;
       }
-      // if (past.x >= -canvas.width + 10) {
+
       past.x += 1;
-      // }
       future.x += 1;
     }
     if (keyPressed("right")) {
@@ -61,9 +59,7 @@ let loop = GameLoop({
       dino.x += VELOCITY;
       isMoving = true;
 
-      // if (past.x >= -canvas.width + 10) {
       past.x -= 1;
-      // }
       future.x -= 1;
     }
     // Determine when to stop jumping if not colliding with anything
@@ -110,6 +106,7 @@ let loop = GameLoop({
     dino.update();
     future.update();
     past.update();
+
     if (future.x - dino.x - dino.width + 5 < 1) {
       dino.ttl = 0;
       dino.playAnimation("cry");
@@ -134,22 +131,13 @@ let loop = GameLoop({
             // circle vs. circle collision detection
             let dx = bullet.x - sprite.x;
             let dy = bullet.y - sprite.y;
-            // const hit = Math.sqrt(dx * dx + dy * dy) < bullet.radius + sprite.width;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance < sprite.width + bullet.radius) {
               if (Math.abs(dx) < 1 || Math.abs(dy) < 1) {
-                // lives--;
-                // if (lives === 0) {
                 bullet.ttl = 0;
                 sprite.ttl = 0;
                 loop.stop();
-                /* } else {
-                  setTimeout(() => {
-                    loop.start();
-                  }, 2000);
-                } */
-                console.log("sprite hit", distance, bullet.radius, sprite.width);
                 sprite.playAnimation("cry");
 
                 break;
@@ -164,9 +152,7 @@ let loop = GameLoop({
     });
   },
   render: function() {
-    // tileEngine.render();
     dino.render();
-
     enemies.map(enemy => enemy.render());
     grounds.map(ground => ground.render());
     future.render();
