@@ -4,111 +4,127 @@ import * as TinyMusic from "tinymusic";
 var ac = new AudioContext();
 
 // set the playback tempo (120 beats per minute)
-var tempo = 260;
+var tempo = 100;
 
 export const when = ac.currentTime;
 const bass = [
-  "A2  h",
-  "A2  q",
-  "A2  h",
-  "A2  q",
-  "A2  h",
-  "-   h",
-  "-   h",
-  "-   h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "F2  h",
-  "C3  h",
-  "C3  q",
-  "C3  h",
-  "C3  q",
-  "C3  h",
-  "-   h",
-  "-   h",
-  "-   h",
-  "G3  h",
-  "G3  h",
-  "G3  h",
-  "G3  h",
-  "G3  h",
-  "G3  h",
-  "G3  h",
-  "G3  q",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "A2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "F2  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+];
+const bass5th = [
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "E3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "C3  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "G2  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
+  "D3  e",
 ];
 const lead = [
-  "C4  h",
-  "-  h",
-  "-  h",
-  "-  h",
-  "-  h",
-  "A3  q",
-  "B3   h",
-  "A3   q",
-  "C4   h",
-  "-  h",
-  "-  h",
-  "-  h",
-  "D4  h",
-  "-  h",
-  "-  h",
-  "-  h",
-  "E4  h",
-  "-  h",
-  "-  h",
-  "D4  q",
-  "C4   h",
-  "-  h",
-  "-   q",
-  "E4   h",
-  "D4  h",
-  "-  h",
-  "-  h",
-  "C4  q",
-  "B4  q",
-  "-  h",
-  "-  h",
-  "-  h",
-  "-  q",
+  "C4  e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "A3  s",
+  "B3   e",
+  "A3   s",
+  "C4   e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "D4  e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "E4  e",
+  "-  e",
+  "-  e",
+  "-  s",
+  "D4  s",
+  "C4   e",
+  "-  e",
+  "-   e",
+  "E4   e",
+  "D4  e",
+  "-  e",
+  "-  e",
+  "C4  s",
+  "B3  e",
+  "-  e",
+  "-  e",
+  "-  e",
+  "-  s",
 ];
 
-// const lead = [];
-// const lead = [
-//   "B3 q",
-//   "B3 q",
-//   "-   h",
-//   "B3 q",
-//   "B3 q",
-//   "B3 q",
-//   "Bb3 q",
-//   "A3 q",
-//   "G3 q",
-//   "-   h",
-//   "G3 q",
-//   "G3 q",
-//   "G3 q",
-//   "G3 q",
-//   "-   h",
-//   "-   h",
-// ];
 // create a new sequence
 export const sequence = new TinyMusic.Sequence(ac, tempo, lead);
 export const sequenceBase = new TinyMusic.Sequence(ac, tempo, bass);
+export const sequenceBase5th = new TinyMusic.Sequence(ac, tempo, bass5th);
 
-// set staccato and smoothing values for maximum coolness
-sequence.staccato = 0.55;
+sequence.createCustomWave([-1, 0, 1, 0, -1, 0, 1]);
 // adjust the levels so the bass and harmony aren't too loud
 sequence.gain.gain.value = 0.7;
 // apply EQ settings
 sequence.mid.frequency.value = 800;
 sequence.mid.gain.value = 3;
 
-// sequenceBase.staccato = 0.05;
 sequenceBase.smoothing = 0.4;
 sequenceBase.gain.gain.value = 0.65;
 sequenceBase.mid.gain.value = 3;
@@ -118,12 +134,15 @@ sequenceBase.mid.gain.value = -6;
 sequenceBase.mid.frequency.value = 500;
 sequenceBase.treble.gain.value = -2;
 sequenceBase.treble.frequency.value = 1400;
+sequenceBase.createCustomWave([-0.8, 1, 0.8, 0.8, -0.8, -0.8, -1]);
 
-// add the notes
-// sequence.push(note1, note2, note3);
-
-// // disable looping
-// sequence.loop = false;
-
-// // play it
-// sequence.play();
+sequenceBase5th.staccato = 0.8;
+sequenceBase5th.smoothing = 0.9;
+sequenceBase5th.gain.gain.value = 0.4;
+sequenceBase5th.mid.gain.value = 3;
+sequenceBase5th.bass.gain.value = 6;
+sequenceBase5th.bass.frequency.value = 80;
+sequenceBase5th.mid.gain.value = -6;
+sequenceBase5th.mid.frequency.value = 500;
+sequenceBase5th.treble.gain.value = -2;
+sequenceBase5th.treble.frequency.value = 1400;

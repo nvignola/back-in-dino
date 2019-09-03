@@ -1,4 +1,5 @@
 import { init, GameLoop, initKeys, keyPressed } from "kontra";
+import { sequence, sequenceBase, sequenceBase5th, when } from "./src/music";
 const { canvas, context } = init();
 
 import { dino } from "./src/createDino";
@@ -14,7 +15,7 @@ function createEnemies() {
   let enemy = createEnemy(context);
   enemies.push(enemy);
 }
-for (var i = 0; i < 1; i++) {
+for (var i = 0; i < 4; i++) {
   createEnemies();
 }
 
@@ -159,6 +160,10 @@ let loop = GameLoop({
     past.render();
   },
 });
+
+sequence.play(when);
+sequenceBase.play(when);
+sequenceBase5th.play(when);
 
 setTimeout(() => {
   sprites = [].concat(enemies, dino);
