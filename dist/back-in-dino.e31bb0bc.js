@@ -3902,7 +3902,283 @@ let kontra = {
 };
 var _default = kontra;
 exports.default = _default;
-},{}],"src/createDino.js":[function(require,module,exports) {
+},{}],"node_modules/tinymusic/dist/TinyMusic.js":[function(require,module,exports) {
+var define;
+(function ( root, factory ) {
+  if ( typeof define === 'function' && define.amd ) {
+    define( [ 'exports' ], factory );
+  } else if ( typeof exports === 'object' && typeof exports.nodeName !== 'string' ) {
+    factory( exports );
+  } else {
+    factory( root.TinyMusic = {} );
+  }
+}( this, function ( exports ) {
+
+/*
+ * Private stuffz
+ */
+
+var enharmonics = 'B#-C|C#-Db|D|D#-Eb|E-Fb|E#-F|F#-Gb|G|G#-Ab|A|A#-Bb|B-Cb',
+  middleC = 440 * Math.pow( Math.pow( 2, 1 / 12 ), -9 ),
+  numeric = /^[0-9.]+$/,
+  octaveOffset = 4,
+  space = /\s+/,
+  num = /(\d+)/,
+  offsets = {};
+
+// populate the offset lookup (note distance from C, in semitones)
+enharmonics.split('|').forEach(function( val, i ) {
+  val.split('-').forEach(function( note ) {
+    offsets[ note ] = i;
+  });
+});
+
+/*
+ * Note class
+ *
+ * new Note ('A4 q') === 440Hz, quarter note
+ * new Note ('- e') === 0Hz (basically a rest), eigth note
+ * new Note ('A4 es') === 440Hz, dotted eighth note (eighth + sixteenth)
+ * new Note ('A4 0.0125') === 440Hz, 32nd note (or any arbitrary
+ * divisor/multiple of 1 beat)
+ *
+ */
+
+// create a new Note instance from a string
+function Note( str ) {
+  var couple = str.split( space );
+  // frequency, in Hz
+  this.frequency = Note.getFrequency( couple[ 0 ] ) || 0;
+  // duration, as a ratio of 1 beat (quarter note = 1, half note = 0.5, etc.)
+  this.duration = Note.getDuration( couple[ 1 ] ) || 0;
+}
+
+// convert a note name (e.g. 'A4') to a frequency (e.g. 440.00)
+Note.getFrequency = function( name ) {
+  var couple = name.split( num ),
+    distance = offsets[ couple[ 0 ] ],
+    octaveDiff = ( couple[ 1 ] || octaveOffset ) - octaveOffset,
+    freq = middleC * Math.pow( Math.pow( 2, 1 / 12 ), distance );
+  return freq * Math.pow( 2, octaveDiff );
+};
+
+// convert a duration string (e.g. 'q') to a number (e.g. 1)
+// also accepts numeric strings (e.g '0.125')
+// and compund durations (e.g. 'es' for dotted-eight or eighth plus sixteenth)
+Note.getDuration = function( symbol ) {
+  return numeric.test( symbol ) ? parseFloat( symbol ) :
+    symbol.toLowerCase().split('').reduce(function( prev, curr ) {
+      return prev + ( curr === 'w' ? 4 : curr === 'h' ? 2 :
+        curr === 'q' ? 1 : curr === 'e' ? 0.5 :
+        curr === 's' ? 0.25 : 0 );
+    }, 0 );
+};
+
+/*
+ * Sequence class
+ */
+
+// create a new Sequence
+function Sequence( ac, tempo, arr ) {
+  this.ac = ac || new AudioContext();
+  this.createFxNodes();
+  this.tempo = tempo || 120;
+  this.loop = true;
+  this.smoothing = 0;
+  this.staccato = 0;
+  this.notes = [];
+  this.push.apply( this, arr || [] );
+}
+
+// create gain and EQ nodes, then connect 'em
+Sequence.prototype.createFxNodes = function() {
+  var eq = [ [ 'bass', 100 ], [ 'mid', 1000 ], [ 'treble', 2500 ] ],
+    prev = this.gain = this.ac.createGain();
+  eq.forEach(function( config, filter ) {
+    filter = this[ config[ 0 ] ] = this.ac.createBiquadFilter();
+    filter.type = 'peaking';
+    filter.frequency.value = config[ 1 ];
+    prev.connect( prev = filter );
+  }.bind( this ));
+  prev.connect( this.ac.destination );
+  return this;
+};
+
+// accepts Note instances or strings (e.g. 'A4 e')
+Sequence.prototype.push = function() {
+  Array.prototype.forEach.call( arguments, function( note ) {
+    this.notes.push( note instanceof Note ? note : new Note( note ) );
+  }.bind( this ));
+  return this;
+};
+
+// create a custom waveform as opposed to "sawtooth", "triangle", etc
+Sequence.prototype.createCustomWave = function( real, imag ) {
+  // Allow user to specify only one array and dupe it for imag.
+  if ( !imag ) {
+    imag = real;
+  }
+
+  // Wave type must be custom to apply period wave.
+  this.waveType = 'custom';
+
+  // Reset customWave
+  this.customWave = [ new Float32Array( real ), new Float32Array( imag ) ];
+};
+
+// recreate the oscillator node (happens on every play)
+Sequence.prototype.createOscillator = function() {
+  this.stop();
+  this.osc = this.ac.createOscillator();
+
+  // customWave should be an array of Float32Arrays. The more elements in
+  // each Float32Array, the dirtier (saw-like) the wave is
+  if ( this.customWave ) {
+    this.osc.setPeriodicWave(
+      this.ac.createPeriodicWave.apply( this.ac, this.customWave )
+    );
+  } else {
+    this.osc.type = this.waveType || 'square';
+  }
+
+  this.osc.connect( this.gain );
+  return this;
+};
+
+// schedules this.notes[ index ] to play at the given time
+// returns an AudioContext timestamp of when the note will *end*
+Sequence.prototype.scheduleNote = function( index, when ) {
+  var duration = 60 / this.tempo * this.notes[ index ].duration,
+    cutoff = duration * ( 1 - ( this.staccato || 0 ) );
+
+  this.setFrequency( this.notes[ index ].frequency, when );
+
+  if ( this.smoothing && this.notes[ index ].frequency ) {
+    this.slide( index, when, cutoff );
+  }
+
+  this.setFrequency( 0, when + cutoff );
+  return when + duration;
+};
+
+// get the next note
+Sequence.prototype.getNextNote = function( index ) {
+  return this.notes[ index < this.notes.length - 1 ? index + 1 : 0 ];
+};
+
+// how long do we wait before beginning the slide? (in seconds)
+Sequence.prototype.getSlideStartDelay = function( duration ) {
+  return duration - Math.min( duration, 60 / this.tempo * this.smoothing );
+};
+
+// slide the note at <index> into the next note at the given time,
+// and apply staccato effect if needed
+Sequence.prototype.slide = function( index, when, cutoff ) {
+  var next = this.getNextNote( index ),
+    start = this.getSlideStartDelay( cutoff );
+  this.setFrequency( this.notes[ index ].frequency, when + start );
+  this.rampFrequency( next.frequency, when + cutoff );
+  return this;
+};
+
+// set frequency at time
+Sequence.prototype.setFrequency = function( freq, when ) {
+  this.osc.frequency.setValueAtTime( freq, when );
+  return this;
+};
+
+// ramp to frequency at time
+Sequence.prototype.rampFrequency = function( freq, when ) {
+  this.osc.frequency.linearRampToValueAtTime( freq, when );
+  return this;
+};
+
+// run through all notes in the sequence and schedule them
+Sequence.prototype.play = function( when ) {
+  when = typeof when === 'number' ? when : this.ac.currentTime;
+
+  this.createOscillator();
+  this.osc.start( when );
+
+  this.notes.forEach(function( note, i ) {
+    when = this.scheduleNote( i, when );
+  }.bind( this ));
+
+  this.osc.stop( when );
+  this.osc.onended = this.loop ? this.play.bind( this, when ) : null;
+
+  return this;
+};
+
+// stop playback, null out the oscillator, cancel parameter automation
+Sequence.prototype.stop = function() {
+  if ( this.osc ) {
+    this.osc.onended = null;
+    this.osc.disconnect();
+    this.osc = null;
+  }
+  return this;
+};
+
+  exports.Note = Note;
+  exports.Sequence = Sequence;
+}));
+
+},{}],"src/music.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.sequenceBase5th = exports.sequenceBase = exports.sequence = exports.when = void 0;
+
+var TinyMusic = _interopRequireWildcard(require("tinymusic"));
+
+function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
+
+// create a new Web Audio API context
+var ac = new AudioContext(); // set the playback tempo (120 beats per minute)
+
+var tempo = 100;
+var when = ac.currentTime;
+exports.when = when;
+var bass = ["A2  e", "A2  e", "A2  e", "A2  e", "A2  e", "A2  e", "A2  e", "A2  e", "F2  e", "F2  e", "F2  e", "F2  e", "F2  e", "F2  e", "F2  e", "F2  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e"];
+var bass5th = ["E3  e", "E3  e", "E3  e", "E3  e", "E3  e", "E3  e", "E3  e", "E3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "C3  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "G2  e", "D3  e", "D3  e", "D3  e", "D3  e", "D3  e", "D3  e", "D3  e", "D3  e"];
+var lead = ["C4  e", "-  e", "-  e", "-  e", "-  e", "-  e", "A3  s", "B3   e", "A3   s", "C4   e", "-  e", "-  e", "-  e", "D4  e", "-  e", "-  e", "-  e", "E4  e", "-  e", "-  e", "-  s", "D4  s", "C4   e", "-  e", "-   e", "E4   e", "D4  e", "-  e", "-  e", "C4  s", "B3  e", "-  e", "-  e", "-  e", "-  s"]; // create a new sequence
+
+var sequence = new TinyMusic.Sequence(ac, tempo, lead);
+exports.sequence = sequence;
+var sequenceBase = new TinyMusic.Sequence(ac, tempo, bass);
+exports.sequenceBase = sequenceBase;
+var sequenceBase5th = new TinyMusic.Sequence(ac, tempo, bass5th);
+exports.sequenceBase5th = sequenceBase5th;
+sequence.createCustomWave([-1, 0, 1, 0, -1, 0, 1]); // adjust the levels so the bass and harmony aren't too loud
+
+sequence.gain.gain.value = 0.7; // apply EQ settings
+
+sequence.mid.frequency.value = 800;
+sequence.mid.gain.value = 3;
+sequenceBase.smoothing = 0.4;
+sequenceBase.gain.gain.value = 0.65;
+sequenceBase.mid.gain.value = 3;
+sequenceBase.bass.gain.value = 6;
+sequenceBase.bass.frequency.value = 80;
+sequenceBase.mid.gain.value = -6;
+sequenceBase.mid.frequency.value = 500;
+sequenceBase.treble.gain.value = -2;
+sequenceBase.treble.frequency.value = 1400;
+sequenceBase.createCustomWave([-0.8, 1, 0.8, 0.8, -0.8, -0.8, -1]);
+sequenceBase5th.staccato = 0.8;
+sequenceBase5th.smoothing = 0.9;
+sequenceBase5th.gain.gain.value = 0.4;
+sequenceBase5th.mid.gain.value = 3;
+sequenceBase5th.bass.gain.value = 6;
+sequenceBase5th.bass.frequency.value = 80;
+sequenceBase5th.mid.gain.value = -6;
+sequenceBase5th.mid.frequency.value = 500;
+sequenceBase5th.treble.gain.value = -2;
+sequenceBase5th.treble.frequency.value = 1400;
+},{"tinymusic":"node_modules/tinymusic/dist/TinyMusic.js"}],"src/createDino.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4068,6 +4344,8 @@ exports.createPast = createPast;
 
 var _kontra = require("kontra");
 
+var _music = require("./src/music");
+
 var _createDino = require("./src/createDino");
 
 var _createGround = require("./src/createGround");
@@ -4082,7 +4360,6 @@ var _init = (0, _kontra.init)(),
     canvas = _init.canvas,
     context = _init.context;
 
-var lives = 2;
 var future = (0, _createFuture.createFuture)(canvas);
 var past = (0, _createPast.createPast)(canvas);
 var enemies = [];
@@ -4092,7 +4369,7 @@ function createEnemies() {
   enemies.push(enemy);
 }
 
-for (var i = 0; i < 1; i++) {
+for (var i = 0; i < 4; i++) {
   createEnemies();
 }
 
@@ -4128,11 +4405,9 @@ var loop = (0, _kontra.GameLoop)({
 
       if (_createDino.dino.x >= 5) {
         _createDino.dino.x -= VELOCITY;
-      } // if (past.x >= -canvas.width + 10) {
+      }
 
-
-      past.x += 1; // }
-
+      past.x += 1;
       future.x += 1;
     }
 
@@ -4140,10 +4415,8 @@ var loop = (0, _kontra.GameLoop)({
       _createDino.dino.playAnimation("walk");
 
       _createDino.dino.x += VELOCITY;
-      isMoving = true; // if (past.x >= -canvas.width + 10) {
-
-      past.x -= 1; // }
-
+      isMoving = true;
+      past.x -= 1;
       future.x -= 1;
     } // Determine when to stop jumping if not colliding with anything
 
@@ -4228,25 +4501,14 @@ var loop = (0, _kontra.GameLoop)({
             var sprite = sprites[j]; // circle vs. circle collision detection
 
             var dx = bullet.x - sprite.x;
-            var dy = bullet.y - sprite.y; // const hit = Math.sqrt(dx * dx + dy * dy) < bullet.radius + sprite.width;
-
+            var dy = bullet.y - sprite.y;
             var distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance < sprite.width + bullet.radius) {
               if (Math.abs(dx) < 1 || Math.abs(dy) < 1) {
-                lives--;
+                bullet.ttl = 0;
+                sprite.ttl = 0;
                 loop.stop();
-
-                if (lives === 0) {
-                  bullet.ttl = 0;
-                  sprite.ttl = 0;
-                } else {
-                  setTimeout(function () {
-                    loop.start();
-                  }, 2000);
-                }
-
-                console.log("sprite hit", distance, bullet.radius, sprite.width);
                 sprite.playAnimation("cry");
                 break;
               }
@@ -4261,7 +4523,6 @@ var loop = (0, _kontra.GameLoop)({
     });
   },
   render: function render() {
-    // tileEngine.render();
     _createDino.dino.render();
 
     enemies.map(function (enemy) {
@@ -4274,11 +4535,18 @@ var loop = (0, _kontra.GameLoop)({
     past.render();
   }
 });
+
+_music.sequence.play(_music.when);
+
+_music.sequenceBase.play(_music.when);
+
+_music.sequenceBase5th.play(_music.when);
+
 setTimeout(function () {
   sprites = [].concat(enemies, _createDino.dino);
   loop.start();
 }, 1000);
-},{"kontra":"node_modules/kontra/kontra.mjs","./src/createDino":"src/createDino.js","./src/createGround":"src/createGround.js","./src/createEnemy":"src/createEnemy.js","./src/createFuture":"src/createFuture.js","./src/createPast":"src/createPast.js"}],"node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
+},{"kontra":"node_modules/kontra/kontra.mjs","./src/music":"src/music.js","./src/createDino":"src/createDino.js","./src/createGround":"src/createGround.js","./src/createEnemy":"src/createEnemy.js","./src/createFuture":"src/createFuture.js","./src/createPast":"src/createPast.js"}],"node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
 var global = arguments[3];
 var OVERLAY_ID = '__parcel__error__overlay__';
 var OldModule = module.bundle.Module;
@@ -4306,7 +4574,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "58950" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "65274" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
