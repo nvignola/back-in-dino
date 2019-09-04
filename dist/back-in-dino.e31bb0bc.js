@@ -4196,10 +4196,12 @@ var image = new Image();
 image.src = "assets/dino.png";
 
 image.onload = function () {
+  var width = 24;
+  var height = 30;
   var spriteSheet = (0, _kontra.SpriteSheet)({
     image: image,
-    frameWidth: 24,
-    frameHeight: 30,
+    frameWidth: width,
+    frameHeight: height,
     animations: {
       idle: {
         frames: "0..2",
@@ -4228,6 +4230,8 @@ image.onload = function () {
     type: "dino",
     x: 125 + 12,
     y: 120,
+    halfWidth: 4,
+    halfHeight: 5,
     gravity: 0.75,
     grounded: false,
     jumping: false,
@@ -4360,9 +4364,38 @@ var _init = (0, _kontra.init)(),
     canvas = _init.canvas,
     context = _init.context;
 
+var intersect = function intersect(rect, circle) {
+  var cx = Math.abs(circle.x - rect.x - rect.halfWidth);
+  var xDist = rect.halfWidth + circle.radius;
+
+  if (cx > xDist) {
+    return false;
+  }
+
+  var cy = Math.abs(circle.y - rect.y - rect.halfHeight);
+  var yDist = rect.halfHeight + circle.radius;
+  if (cy > yDist) return false;
+  if (cx <= rect.halfWidth || cy <= rect.halfHeight) return true;
+  var xCornerDist = cx - rect.halfWidth;
+  var yCornerDist = cy - rect.halfHeight;
+  var xCornerDistSq = xCornerDist * xCornerDist;
+  var yCornerDistSq = yCornerDist * yCornerDist;
+  var maxCornerDistSq = circle.radius * circle.radius;
+  return xCornerDistSq + yCornerDistSq <= maxCornerDistSq;
+};
+
+var GAME_STATES = {
+  hold: -1,
+  play: 1,
+  restart: 2
+};
 var future = (0, _createFuture.createFuture)(canvas);
 var past = (0, _createPast.createPast)(canvas);
 var enemies = [];
+var isMoving = false;
+var grounds = [];
+var sprites = [];
+var VELOCITY = 1.5;
 
 function createEnemies() {
   var enemy = (0, _createEnemy.createEnemy)(context);
@@ -4373,15 +4406,11 @@ for (var i = 0; i < 4; i++) {
   createEnemies();
 }
 
-var grounds = [];
-
 for (var i = 0; i <= canvas.width; i++) {
   var ground = (0, _createGround.createGround)(context, i);
   grounds.push(ground);
 }
 
-var sprites = [];
-var VELOCITY = 1.5;
 (0, _kontra.initKeys)();
 
 var collideGround = function collideGround() {
@@ -4395,18 +4424,14 @@ var collideGround = function collideGround() {
 
 var loop = (0, _kontra.GameLoop)({
   update: function update(dt) {
-    var isMoving = false;
+    isMoving = false;
     collideGround();
 
     if ((0, _kontra.keyPressed)("left")) {
       _createDino.dino.playAnimation("moonwalk");
 
       isMoving = true;
-
-      if (_createDino.dino.x >= 5) {
-        _createDino.dino.x -= VELOCITY;
-      }
-
+      _createDino.dino.x -= VELOCITY;
       past.x += 1;
       future.x += 1;
     }
@@ -4498,20 +4523,14 @@ var loop = (0, _kontra.GameLoop)({
           // don't check bullet vs. bullet collisions
           if (sprites[j].type !== "bullet") {
             var bullet = sprites[_i];
-            var sprite = sprites[j]; // circle vs. circle collision detection
+            var sprite = sprites[j];
 
-            var dx = bullet.x - sprite.x;
-            var dy = bullet.y - sprite.y;
-            var distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < sprite.width + bullet.radius) {
-              if (Math.abs(dx) < 1 || Math.abs(dy) < 1) {
-                bullet.ttl = 0;
-                sprite.ttl = 0;
-                loop.stop();
-                sprite.playAnimation("cry");
-                break;
-              }
+            if (intersect(sprite, bullet)) {
+              bullet.ttl = 0;
+              sprite.ttl = 0;
+              sprite.playAnimation("cry");
+              loop.stop();
+              break;
             }
           }
         }
@@ -4574,7 +4593,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "65274" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "64839" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

@@ -5,10 +5,12 @@ export let dino;
 let image = new Image();
 image.src = "assets/dino.png";
 image.onload = function() {
+  const width = 24;
+  const height = 30;
   let spriteSheet = SpriteSheet({
     image: image,
-    frameWidth: 24,
-    frameHeight: 30,
+    frameWidth: width,
+    frameHeight: height,
     animations: {
       idle: {
         frames: "0..2",
@@ -39,6 +41,8 @@ image.onload = function() {
     type: "dino",
     x: 125 + 12,
     y: 120,
+    halfWidth: 4,
+    halfHeight: 5,
     gravity: 0.75,
     grounded: false,
     jumping: false,

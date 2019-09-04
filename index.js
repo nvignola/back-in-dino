@@ -8,9 +8,38 @@ import { createEnemy } from "./src/createEnemy";
 import { createFuture } from "./src/createFuture";
 import { createPast } from "./src/createPast";
 
+const intersect = (rect, circle) => {
+  const cx = Math.abs(circle.x - rect.x - rect.halfWidth);
+  const xDist = rect.halfWidth + circle.radius;
+  if (cx > xDist) {
+    return false;
+  }
+  const cy = Math.abs(circle.y - rect.y - rect.halfHeight);
+  const yDist = rect.halfHeight + circle.radius;
+  if (cy > yDist) return false;
+  if (cx <= rect.halfWidth || cy <= rect.halfHeight) return true;
+
+  const xCornerDist = cx - rect.halfWidth;
+  const yCornerDist = cy - rect.halfHeight;
+  const xCornerDistSq = xCornerDist * xCornerDist;
+  const yCornerDistSq = yCornerDist * yCornerDist;
+  const maxCornerDistSq = circle.radius * circle.radius;
+
+  return xCornerDistSq + yCornerDistSq <= maxCornerDistSq;
+};
+
+const GAME_STATES = {
+  hold: -1,
+  play: 1,
+  restart: 2,
+};
 let future = createFuture(canvas);
 let past = createPast(canvas);
 let enemies = [];
+let isMoving = false;
+let grounds = [];
+let sprites = [];
+const VELOCITY = 1.5;
 function createEnemies() {
   let enemy = createEnemy(context);
   enemies.push(enemy);
@@ -19,15 +48,10 @@ for (var i = 0; i < 4; i++) {
   createEnemies();
 }
 
-let grounds = [];
 for (var i = 0; i <= canvas.width; i++) {
   let ground = createGround(context, i);
   grounds.push(ground);
 }
-
-let sprites = [];
-
-const VELOCITY = 1.5;
 
 initKeys();
 
@@ -42,15 +66,13 @@ let collideGround = () => {
 
 let loop = GameLoop({
   update: function(dt) {
-    let isMoving = false;
+    isMoving = false;
     collideGround();
 
     if (keyPressed("left")) {
       dino.playAnimation("moonwalk");
       isMoving = true;
-      if (dino.x >= 5) {
-        dino.x -= VELOCITY;
-      }
+      dino.x -= VELOCITY;
 
       past.x += 1;
       future.x += 1;
@@ -129,20 +151,13 @@ let loop = GameLoop({
           if (sprites[j].type !== "bullet") {
             let bullet = sprites[i];
             let sprite = sprites[j];
-            // circle vs. circle collision detection
-            let dx = bullet.x - sprite.x;
-            let dy = bullet.y - sprite.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (intersect(sprite, bullet)) {
+              bullet.ttl = 0;
+              sprite.ttl = 0;
+              sprite.playAnimation("cry");
+              loop.stop();
 
-            if (distance < sprite.width + bullet.radius) {
-              if (Math.abs(dx) < 1 || Math.abs(dy) < 1) {
-                bullet.ttl = 0;
-                sprite.ttl = 0;
-                loop.stop();
-                sprite.playAnimation("cry");
-
-                break;
-              }
+              break;
             }
           }
         }
