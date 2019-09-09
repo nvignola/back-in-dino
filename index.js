@@ -1,5 +1,6 @@
-import { init, GameLoop, initKeys, keyPressed } from "kontra";
+import { init, GameLoop, initKeys, keyPressed, assets } from "kontra";
 import { sequence, sequenceBase, sequenceBase5th, when } from "./src/music";
+import { createTCVS, drawText } from "./src/text";
 const { canvas, context } = init();
 
 import { dino } from "./src/createDino";
@@ -17,41 +18,92 @@ const intersect = (rect, circle) => {
   const cy = Math.abs(circle.y - rect.y - rect.halfHeight);
   const yDist = rect.halfHeight + circle.radius;
   if (cy > yDist) return false;
-  if (cx <= rect.halfWidth || cy <= rect.halfHeight) return true;
+  if (cx <= rect.halfWidth || cy <= rect.halfHeight) {
+    return true;
+  }
 
-  const xCornerDist = cx - rect.halfWidth;
-  const yCornerDist = cy - rect.halfHeight;
+  const xCornerDist = cx;
+  const yCornerDist = cy;
   const xCornerDistSq = xCornerDist * xCornerDist;
   const yCornerDistSq = yCornerDist * yCornerDist;
   const maxCornerDistSq = circle.radius * circle.radius;
 
-  return xCornerDistSq + yCornerDistSq <= maxCornerDistSq;
+  if (Math.abs(xCornerDistSq + yCornerDistSq) <= maxCornerDistSq) {
+    return true;
+  } else {
+    return false;
+  }
 };
 
-const GAME_STATES = {
+/*
+======== ONE TIME VAR INITIALIZATION =================
+*/
+
+var x = canvas.getContext("2d");
+x.imageSmoothingEnabled = false;
+x.webkitImageSmoothingEnabled = false;
+x.mozImageSmoothingEnabled = false;
+x.msImageSmoothingEnabled = false;
+x.oImageSmoothingEnabled = false;
+var imgPath = "assets/";
+//colors
+var c1 = "#70c1b3";
+var c2 = "#ffe066";
+var c3 = "#f25f5c";
+var c4 = "#247ba0";
+var c5 = "#50514f";
+let TCTX = createTCVS(canvas);
+
+// /*
+// ===== PRE-LOADING ASSETS then start the game ============
+// */
+// assets
+//   .load(
+//     imgPath + "dino.png",
+//   )
+//   .then(function() {
+//     //load data
+//     startLoop();
+//     if (window.localStorage) {
+//       personalBest = parseInt(localStorage.getItem("RECORD")) || 0;
+//     } else {
+//       // can't be used
+//     }
+//     pixels = [];
+//     bgPixels = [];
+//     create_pool();
+
+//     initVar();
+//     initializeGame();
+
+//     particleBg();
+//   })
+//   .catch(function(err) {
+//     // error loading an asset
+//   });
+
+const $restart = document.querySelector("#restart");
+
+const GAME_PHASES = {
   hold: -1,
-  play: 1,
-  restart: 2,
+  dead: 1,
+  play: 2,
+  restart: 3,
 };
-let future = createFuture(canvas);
-let past = createPast(canvas);
+
+const GAME_TEXT = {
+  title: "Back In Dino",
+  gameBy: "a game by Nicolantonio Vignola - js13kgames 2019",
+  gameOver: "Game Over",
+};
+let gamePhase;
+let future;
+let past;
 let enemies = [];
 let isMoving = false;
 let grounds = [];
 let sprites = [];
 const VELOCITY = 1.5;
-function createEnemies() {
-  let enemy = createEnemy(context);
-  enemies.push(enemy);
-}
-for (var i = 0; i < 4; i++) {
-  createEnemies();
-}
-
-for (var i = 0; i <= canvas.width; i++) {
-  let ground = createGround(context, i);
-  grounds.push(ground);
-}
 
 initKeys();
 
@@ -63,6 +115,32 @@ let collideGround = () => {
     dino.dy = 0;
   }
 };
+
+function initGame() {
+  gamePhase = GAME_PHASES.hold;
+  dino.grounded = true;
+  dino.x = canvas.width / 2 - dino.width / 2;
+  dino.y = canvas.height - dino.height / 2;
+  future = createFuture(canvas);
+  past = createPast(canvas);
+  grounds = [];
+  enemies = [];
+  isMoving = false;
+  sprites = [];
+  function createEnemies() {
+    let enemy = createEnemy(context);
+    enemies.push(enemy);
+  }
+  for (var i = 0; i < 4; i++) {
+    createEnemies();
+  }
+
+  for (var i = 0; i <= canvas.width; i++) {
+    let ground = createGround(context, i);
+    grounds.push(ground);
+  }
+  sprites = [].concat(enemies, dino);
+}
 
 let loop = GameLoop({
   update: function(dt) {
@@ -152,20 +230,21 @@ let loop = GameLoop({
             let bullet = sprites[i];
             let sprite = sprites[j];
             if (intersect(sprite, bullet)) {
+              sprite.playAnimation("cry");
               bullet.ttl = 0;
               sprite.ttl = 0;
-              sprite.playAnimation("cry");
+              TCTX.fillStyle = c5;
+              initializeGame();
               loop.stop();
-
               break;
             }
           }
         }
       }
     }
-    sprites = sprites.filter(sprite => {
-      return sprite.isAlive();
-    });
+    // sprites = sprites.filter(sprite => {
+    //   return sprite.isAlive();
+    // });
   },
   render: function() {
     dino.render();
@@ -180,7 +259,40 @@ sequence.play(when);
 sequenceBase.play(when);
 sequenceBase5th.play(when);
 
+initializeGame();
 setTimeout(() => {
-  sprites = [].concat(enemies, dino);
-  loop.start();
+  initGame();
 }, 1000);
+
+$restart.addEventListener("click", () => {
+  initGame();
+  loop.start();
+});
+
+//initialization of title screen
+function initializeGame() {
+  TCTX.fillStyle = c2;
+
+  drawText(GAME_TEXT.title, 1, {
+    x: GAME_TEXT.title.length * 2.5,
+    y: GAME_TEXT.title.length,
+  });
+  drawText(GAME_TEXT.gameBy, 0.3, {
+    x: 2,
+    y: canvas.height - 8,
+  });
+
+  TCTX.fillStyle = c4;
+  drawText("- press arrow right to move right", 0.3, {
+    x: 30,
+    y: 70,
+  });
+  drawText("- press arrow left to move left", 0.3, {
+    x: 30,
+    y: 90,
+  });
+  drawText("- press arrow up to jump", 0.3, {
+    x: 30,
+    y: 110,
+  });
+}

@@ -9,7 +9,9 @@
   },
   "scripts": {
     "dev": "parcel index.html",
-    "build": "parcel build index.html"
+    "delete-files": "pushd dist && rm -f *.js *.html *.map && popd",
+    "build": "npm run delete-files && parcel build index.html --experimental-scope-hoisting --no-source-maps --public-url ./",
+    "check-file-size": "node ./scripts/check-file-size.js"
   },
   "keywords": [],
   "author": "",

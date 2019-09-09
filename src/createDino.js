@@ -3,7 +3,7 @@ import { Sprite, SpriteSheet } from "kontra";
 export let dino;
 
 let image = new Image();
-image.src = "assets/dino.png";
+image.src = "dino.png";
 image.onload = function() {
   const width = 24;
   const height = 30;
@@ -31,7 +31,7 @@ image.onload = function() {
         frameRate: 10,
       },
       cry: {
-        frames: "14..16",
+        frames: "15..15",
         frameRate: 10,
       },
     },
@@ -41,8 +41,8 @@ image.onload = function() {
     type: "dino",
     x: 125 + 12,
     y: 120,
-    halfWidth: 4,
-    halfHeight: 5,
+    halfWidth: 7.5,
+    halfHeight: 8.5,
     gravity: 0.75,
     grounded: false,
     jumping: false,
