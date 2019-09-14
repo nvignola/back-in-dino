@@ -4,6 +4,8 @@
 
 js13K 2019 entry - Desktop
 
+Original music by Nicolantonio Vignola
+
 ---
 
 Dino is stucked in time. He can't walk back in the past... he can just moonwalk. He can't go in the future. The only thing left for him is to enjoy the present also if is not that easy, specially when some weird circles try to catch him. Help Dino to stay alive and enjoy the present time.
